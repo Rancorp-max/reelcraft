@@ -54,7 +54,9 @@ Write 2-3 engaging sentences, include the CTA, leave a blank line, then 15-18 ha
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
   const { action, brand, form, style } = req.body || {};
 
@@ -66,6 +68,8 @@ export default async function handler(req, res) {
     ? buildCaptionPrompt({ brand, form, style })
     : buildSlidesPrompt({ brand, form, style });
 
+  const modelName = "claude-3-haiku-20240307";
+
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -75,7 +79,7 @@ export default async function handler(req, res) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "model: "claude-haiku-4-5-20251001",
+        model: modelName,
         max_tokens: action === "caption" ? 350 : 1400,
         messages: [{ role: "user", content: prompt }],
       }),
@@ -84,7 +88,7 @@ export default async function handler(req, res) {
     if (!response.ok) {
       const txt = await response.text();
       console.error("Anthropic error:", txt);
-      return res.status(502).json({ error: "AI request failed: " + txt });
+      return res.status(502).json({ error: "AI request failed", detail: txt });
     }
 
     const data = await response.json();
@@ -98,7 +102,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ slides });
 
   } catch (err) {
-    console.error("Handler error:", err);
+    console.error("Handler error:", err.message);
     return res.status(500).json({ error: err.message });
   }
 }
