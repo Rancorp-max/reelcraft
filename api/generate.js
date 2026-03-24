@@ -53,7 +53,7 @@ Industry: ${form.industry || "general"}
 Write 2-3 engaging sentences, include the CTA, leave a blank line, then 15-18 hashtags on one line. No quotes or explanation.`;
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const { action, brand, form, style } = req.body || {};
@@ -75,7 +75,7 @@ module.exports = async function handler(req, res) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-3-5-haiku-20241022",
         max_tokens: action === "caption" ? 350 : 1400,
         messages: [{ role: "user", content: prompt }],
       }),
@@ -101,4 +101,4 @@ module.exports = async function handler(req, res) {
     console.error("Handler error:", err);
     return res.status(500).json({ error: err.message });
   }
-};
+}
