@@ -68,7 +68,7 @@ export default async function handler(req, res) {
     ? buildCaptionPrompt({ brand, form, style })
     : buildSlidesPrompt({ brand, form, style });
 
-  const modelName = "claude-3-haiku-20240307";
+  const modelName = "claude-haiku-4-5-20251001";
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
