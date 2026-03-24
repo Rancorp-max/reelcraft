@@ -210,7 +210,6 @@ body{font-family:'DM Sans',sans-serif;background:#08080d;color:#ede9e0;overflow:
 .video-preview{border-radius:10px;background:#000;display:block}
 
 /* caption panel */
-.caption-panel{width:100%;padding:0 24px 24px}
 .caption-box{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
 .caption-header{display:flex;align-items:center;justify-content:space-between}
 .caption-title{font-size:11px;font-weight:600;color:rgba(255,255,255,.4);letter-spacing:.5px;text-transform:uppercase}
@@ -298,11 +297,9 @@ function drawProgressBars(ctx, w, n, elapsed) {
 }
 
 function drawSlide(ctx, w, h, slide, opts = {}) {
-  // Background gradient
   ctx.fillStyle = makeGrad(ctx, w, h, slide.gradientAngle, slide.gradientStops);
   ctx.fillRect(0, 0, w, h);
 
-  // Product image — top 58% with gradient fade into brand color
   const hasProduct = opts.productImg?.complete && opts.productImg?.naturalWidth > 0;
   if (hasProduct) {
     const imgH = h * 0.58;
@@ -322,7 +319,6 @@ function drawSlide(ctx, w, h, slide, opts = {}) {
     ctx.fillStyle = bg; ctx.fillRect(0, imgH - 2, w, h - imgH + 2);
   }
 
-  // Vignette
   const vig = ctx.createRadialGradient(w / 2, h * 0.45, h * 0.1, w / 2, h / 2, h * 0.82);
   vig.addColorStop(0, "rgba(0,0,0,0)"); vig.addColorStop(1, "rgba(0,0,0,0.5)");
   ctx.fillStyle = vig; ctx.fillRect(0, 0, w, h);
@@ -330,32 +326,27 @@ function drawSlide(ctx, w, h, slide, opts = {}) {
   const tc = slide.textColor || "#fff";
   const cx = w / 2;
 
-  // Emoji (only when no product image)
   if (!hasProduct) {
     ctx.font = `${Math.round(w * 0.26)}px serif`;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(slide.emoji || "✨", cx, h * (h > w ? 0.36 : 0.28));
   }
 
-  // Headline
   const hlSz = Math.round(w * (hasProduct ? 0.135 : 0.165));
   ctx.font = `700 ${hlSz}px "Bebas Neue",sans-serif`;
   ctx.fillStyle = tc;
   const hlY = hasProduct ? h * 0.62 : (h > w ? h * 0.52 : h * 0.42);
   const hlH = wrapText(ctx, (slide.headline || "").toUpperCase(), cx, hlY, w - 64, hlSz * 1.1);
 
-  // Sub text
   const subSz = Math.round(w * 0.057);
   ctx.font = `400 ${subSz}px "DM Sans",sans-serif`;
   ctx.fillStyle = `${tc}C8`;
   wrapText(ctx, slide.sub || "", cx, hlY + hlH + 16, w - 88, subSz * 1.48);
 
-  // Badge
   if (slide.badge) {
     drawBadge(ctx, slide.badge, cx, h * (hasProduct ? 0.9 : (h > w ? 0.84 : 0.88)), slide.badgeStyle);
   }
 
-  // Logo or brand name — positioned below progress bars
   const hasLogo = opts.logoImg?.complete && opts.logoImg?.naturalWidth > 0;
   if (hasLogo) {
     const lsz = Math.round(w * 0.1);
@@ -367,7 +358,6 @@ function drawSlide(ctx, w, h, slide, opts = {}) {
     ctx.fillText(opts.brandName.toUpperCase(), w * 0.055, 78);
   }
 
-  // Watermark
   if (opts.watermark) {
     ctx.font = `500 ${Math.round(w * 0.032)}px "DM Sans",sans-serif`;
     ctx.fillStyle = "rgba(255,255,255,.35)";
@@ -393,45 +383,48 @@ function renderFrame(mainCtx, offCtx, w, h, slides, elapsed, opts) {
 }
 
 /* ─────────────────────────────────────────────
+   STORAGE HELPERS (localStorage, no window.storage)
+───────────────────────────────────────────── */
+const STORAGE_KEY = "reelcraft_brand_v1";
+
+function loadBrandKit() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function saveBrandKit(kit) {
+  try {
+    const { logoImg, ...toSave } = kit;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+  } catch {}
+}
+
+/* ─────────────────────────────────────────────
    MAIN COMPONENT
 ───────────────────────────────────────────── */
 export default function App() {
-  // Brand kit — persisted to storage
   const [brand, setBrand] = useState({ name: "", color1: "#ff6b35", color2: "#1a0a2e", logoBase64: null, logoImg: null });
   const [brandSaved, setBrandSaved] = useState(false);
-
-  // Campaign form
   const [form, setForm] = useState({ sale: "", detail: "", cta: "Shop Now", industry: "" });
-
-  // Style settings
   const [style, setStyle] = useState({ vibe: "bold", format: "9:16", watermark: false });
-
-  // Product image
   const [productBase64, setProductBase64] = useState(null);
   const productImgRef = useRef(null);
-
-  // Slides state
   const [slides, setSlides] = useState(null);
   const [previewSi, setPreviewSi] = useState(0);
   const [editingIdx, setEditingIdx] = useState(null);
-
-  // Async state
   const [loading, setLoading] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recPct, setRecPct] = useState(0);
   const [videoUrl, setVideoUrl] = useState(null);
   const [videoMime, setVideoMime] = useState("video/webm");
-
-  // Caption
   const [caption, setCaption] = useState(null);
   const [captionLoading, setCaptionLoading] = useState(false);
   const [captionCopied, setCaptionCopied] = useState(false);
-
-  // UI
   const [tab, setTab] = useState("brand");
   const [error, setError] = useState("");
 
-  // Refs
   const canvasRef = useRef(null);
   const offCtxRef = useRef(null);
   const animRef = useRef(null);
@@ -449,53 +442,36 @@ export default function App() {
     offCtxRef.current = oc.getContext("2d");
   }, [fmt.w, fmt.h]);
 
-  /* ── Resize main canvas on format change ── */
   useEffect(() => {
-    if (canvasRef.current) {
-      canvasRef.current.width = fmt.w;
-      canvasRef.current.height = fmt.h;
-    }
-    if (offCtxRef.current) {
-      offCtxRef.current.canvas.width = fmt.w;
-      offCtxRef.current.canvas.height = fmt.h;
-    }
+    if (canvasRef.current) { canvasRef.current.width = fmt.w; canvasRef.current.height = fmt.h; }
+    if (offCtxRef.current) { offCtxRef.current.canvas.width = fmt.w; offCtxRef.current.canvas.height = fmt.h; }
   }, [fmt.w, fmt.h]);
 
-  /* ── Load brand kit from storage ── */
+  /* ── Load brand kit from localStorage ── */
   useEffect(() => {
-    (async () => {
-      try {
-        const r = await window.storage.get("reelcraft_brand");
-        if (r) {
-          const kit = JSON.parse(r.value);
-          if (kit.logoBase64) {
-            const img = new Image();
-            img.src = kit.logoBase64;
-            kit.logoImg = img;
-          }
-          setBrand(kit);
-        }
-      } catch {}
-    })();
+    const kit = loadBrandKit();
+    if (kit) {
+      if (kit.logoBase64) {
+        const img = new Image();
+        img.src = kit.logoBase64;
+        kit.logoImg = img;
+      }
+      setBrand(kit);
+    }
   }, []);
 
-  /* ── Persist brand kit ── */
-  const saveBrand = async (kit) => {
-    try {
-      const { logoImg, ...toSave } = kit;
-      await window.storage.set("reelcraft_brand", JSON.stringify(toSave));
-      setBrandSaved(true);
-      setTimeout(() => setBrandSaved(false), 2000);
-    } catch {}
+  const persistBrand = (kit) => {
+    saveBrandKit(kit);
+    setBrandSaved(true);
+    setTimeout(() => setBrandSaved(false), 2000);
   };
 
   const setBK = (k, v) => {
     const next = { ...brand, [k]: v };
     setBrand(next);
-    saveBrand(next);
+    persistBrand(next);
   };
 
-  /* ── Drawing opts ── */
   const getOpts = useCallback(() => ({
     productImg: productImgRef.current,
     logoImg: brand.logoImg,
@@ -503,7 +479,6 @@ export default function App() {
     watermark: style.watermark,
   }), [brand.logoImg, brand.name, style.watermark]);
 
-  /* ── Refresh static preview ── */
   const refreshPreview = useCallback(() => {
     if (!slides || recording) return;
     document.fonts.ready.then(() => {
@@ -517,7 +492,6 @@ export default function App() {
 
   useEffect(() => { refreshPreview(); }, [refreshPreview]);
 
-  /* ── Logo upload ── */
   const handleLogoUpload = (e) => {
     const file = e.target.files?.[0]; if (!file) return;
     const reader = new FileReader();
@@ -526,17 +500,16 @@ export default function App() {
       const img = new Image(); img.src = b64;
       img.onload = refreshPreview;
       const next = { ...brand, logoBase64: b64, logoImg: img };
-      setBrand(next); saveBrand(next);
+      setBrand(next); persistBrand(next);
     };
     reader.readAsDataURL(file);
   };
 
   const removeLogo = () => {
     const next = { ...brand, logoBase64: null, logoImg: null };
-    setBrand(next); saveBrand(next);
+    setBrand(next); persistBrand(next);
   };
 
-  /* ── Product image upload ── */
   const handleProductUpload = (e) => {
     const file = e.target.files?.[0]; if (!file) return;
     const reader = new FileReader();
@@ -552,65 +525,38 @@ export default function App() {
 
   const removeProduct = () => { setProductBase64(null); productImgRef.current = null; };
 
-  /* ── Apply industry template ── */
   const applyTemplate = (key) => {
     const t = INDUSTRIES.find(i => i.key === key);
     if (t) setForm(f => ({ ...f, sale: t.sale, detail: t.detail, cta: t.cta, industry: key }));
   };
 
-  /* ── Generate slides ── */
+  /* ── Generate slides via /api/generate ── */
   const generate = async () => {
     if (!form.sale.trim()) return;
     setLoading(true); setError(""); setSlides(null); setVideoUrl(null);
     setCaption(null); setPreviewSi(0); setEditingIdx(null);
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1400,
-          messages: [{
-            role: "user",
-            content: `Create a 5-slide Instagram promo video. Return ONLY a JSON array, no markdown, no explanation.
-
-Brand: ${brand.name || "the brand"}
-Sale/Offer: ${form.sale}
-Extra detail: ${form.detail || "none"}
-CTA: ${form.cta}
-Vibe: ${VIBE_DESC[style.vibe]}
-Canvas format: ${style.format} (${fmt.w}×${fmt.h})
-Primary/accent color: ${brand.color1}
-Background/base color: ${brand.color2}
-Has product image: ${!!productBase64}
-
-Each of the 5 slide objects must have exactly:
-- "emoji": 1 relevant emoji string
-- "headline": 2-5 words, punchy, uppercase-friendly
-- "sub": 1-2 short engaging sentences
-- "badge": short pill text like "50% OFF" / "FREE SHIPPING" / "LIMITED TIME" or null
-- "gradientAngle": number 0-360, vary meaningfully per slide
-- "gradientStops": 2-3 objects [{offset:0-1, color:"#hex"}], use brand colors creatively, vary per slide (flip order, add midtones, darken/lighten)
-- "textColor": light hex color (e.g. "#ffffff" or near-white that contrasts on the bg)
-- "badgeStyle": {background: "hex or rgba string", color: "#hex"} or null
-
-Slide arc: 1=bold attention grabber, 2=main offer details, 3=key benefit or urgency, 4=secondary benefit or social proof, 5=clear CTA closer.
-Make each slide feel visually distinct through gradient variation. Be creative and scroll-stopping.`
-          }]
-        })
+          action: "slides",
+          brand,
+          form: { ...form, hasProductImage: !!productBase64 },
+          style,
+        }),
       });
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
       const data = await res.json();
-      const raw = data.content?.find(b => b.type === "text")?.text || "";
-      const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
-      setSlides(parsed);
+      if (!data.slides) throw new Error(data.error || "No slides returned");
+      setSlides(data.slides);
     } catch (e) {
-      setError("Generation failed — please check your details and try again.");
+      setError(e.message || "Generation failed — please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  /* ── Update a slide field (for editor) ── */
   const updateSlide = (i, field, value) => {
     setSlides(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s));
   };
@@ -667,7 +613,6 @@ Make each slide feel visually distinct through gradient variation. Be creative a
     animRef.current = requestAnimationFrame(frame);
   }, [slides, fmt.w, fmt.h, getOpts]);
 
-  /* ── Download ── */
   const download = () => {
     if (!videoUrl) return;
     const ext = videoMime.includes("mp4") ? "mp4" : "webm";
@@ -675,39 +620,18 @@ Make each slide feel visually distinct through gradient variation. Be creative a
     const a = document.createElement("a"); a.href = videoUrl; a.download = name; a.click();
   };
 
-  /* ── Generate caption ── */
+  /* ── Generate caption via /api/generate ── */
   const generateCaption = async () => {
     if (!slides) return;
     setCaptionLoading(true); setCaption(null);
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 350,
-          messages: [{
-            role: "user",
-            content: `Write an Instagram caption for this promo post.
-
-Brand: ${brand.name || "the brand"}
-Offer: ${form.sale}
-Details: ${form.detail || "none"}
-CTA: ${form.cta}
-Vibe: ${style.vibe}
-Industry: ${form.industry || "general"}
-
-Instructions:
-- Write 2-3 natural, engaging sentences. Don't be overly salesy.
-- Include the CTA naturally
-- Leave one blank line after the copy
-- Then write 15-18 relevant hashtags on a single line
-- No quotes around the output, no explanations, just the caption + hashtags`
-          }]
-        })
+        body: JSON.stringify({ action: "caption", brand, form, style }),
       });
       const data = await res.json();
-      setCaption(data.content?.find(b => b.type === "text")?.text || "");
+      setCaption(data.caption || "Failed to generate. Please try again.");
     } catch {
       setCaption("Failed to generate. Please try again.");
     } finally {
@@ -726,21 +650,17 @@ Instructions:
   const canGenerate = form.sale.trim() && !loading && !recording;
   const canRecord = !!slides && !loading && !recording;
 
-  /* ── RENDER ── */
   return (
     <>
       <style>{CSS}</style>
       <div className="app">
 
-        {/* Header */}
         <header className="hdr">
           <div className="hdr-logo">▶</div>
           <span className="hdr-name">REELCRAFT</span>
           <span className="hdr-pro">PRO</span>
           <div className="hdr-spacer" />
-          {brandSaved && (
-            <div className="hdr-saved"><div className="saved-dot" />Brand kit saved</div>
-          )}
+          {brandSaved && <div className="hdr-saved"><div className="saved-dot" />Brand kit saved</div>}
         </header>
 
         <div className="main">
@@ -755,7 +675,6 @@ Instructions:
 
             <div className="tab-body">
 
-              {/* ── BRAND TAB ── */}
               {tab === "brand" && (
                 <>
                   <div className="sec">
@@ -765,7 +684,6 @@ Instructions:
                       <input value={brand.name} onChange={e => setBK("name", e.target.value)} placeholder="e.g. Zara, Sunrise Café, Your Store" />
                     </div>
                   </div>
-
                   <div className="sec">
                     <div className="sec-label">Colors</div>
                     <div className="clr-pair">
@@ -789,7 +707,6 @@ Instructions:
                       </div>
                     </div>
                   </div>
-
                   <div className="sec">
                     <div className="sec-label">Logo</div>
                     {brand.logoBase64 ? (
@@ -805,14 +722,12 @@ Instructions:
                       </div>
                     )}
                   </div>
-
                   <div className="note">
                     Your brand kit is saved automatically and loaded on future visits. Set it once — use it for every campaign.
                   </div>
                 </>
               )}
 
-              {/* ── CAMPAIGN TAB ── */}
               {tab === "campaign" && (
                 <>
                   <div className="sec">
@@ -825,9 +740,7 @@ Instructions:
                       ))}
                     </div>
                   </div>
-
                   <div className="divider" />
-
                   <div className="sec">
                     <div className="sec-label">Campaign Details</div>
                     <div className="field">
@@ -843,7 +756,6 @@ Instructions:
                       <input value={form.cta} onChange={e => setForm(f=>({...f,cta:e.target.value}))} placeholder="Shop Now" />
                     </div>
                   </div>
-
                   <div className="sec">
                     <div className="sec-label">Product / Hero Image <span style={{color:"rgba(255,255,255,.25)",fontWeight:400,textTransform:"none",letterSpacing:0}}>(optional)</span></div>
                     {productBase64 ? (
@@ -862,7 +774,6 @@ Instructions:
                 </>
               )}
 
-              {/* ── STYLE TAB ── */}
               {tab === "style" && (
                 <>
                   <div className="sec">
@@ -875,7 +786,6 @@ Instructions:
                       ))}
                     </div>
                   </div>
-
                   <div className="sec">
                     <div className="sec-label">Format</div>
                     <div className="fmt-row">
@@ -888,7 +798,6 @@ Instructions:
                       ))}
                     </div>
                   </div>
-
                   <div className="sec">
                     <div className="sec-label">Branding</div>
                     <div className="toggle-row">
@@ -901,7 +810,6 @@ Instructions:
                       </button>
                     </div>
                   </div>
-
                   <div className="sec">
                     <div className="sec-label">Background Music</div>
                     <div className="music-info">
@@ -921,7 +829,6 @@ Instructions:
 
             </div>
 
-            {/* ── Actions ── */}
             <div className="action-area">
               {error && <div className="err">⚠ {error}</div>}
 
@@ -978,12 +885,10 @@ Instructions:
           <div className="right">
             <div className="right-top">
 
-              {/* Preview label */}
               <div className="preview-label">
                 {FORMATS[style.format].icon} {FORMATS[style.format].label} · {fmt.w}×{fmt.h}
               </div>
 
-              {/* Canvas preview */}
               <div className="preview-wrap">
                 <div className={isStory ? "phone-frame" : "plain-frame"} style={{ width: previewW + (isStory ? 12 : 0), height: previewH + (isStory ? 12 : 0) }}>
                   {isStory && <div className="phone-notch" />}
@@ -1004,15 +909,11 @@ Instructions:
                       ref={canvasRef}
                       width={fmt.w}
                       height={fmt.h}
-                      style={{
-                        transform: `scale(${previewScale})`,
-                        display: slides ? "block" : "none",
-                      }}
+                      style={{ transform: `scale(${previewScale})`, display: slides ? "block" : "none" }}
                     />
                   </div>
                 </div>
 
-                {/* Slide navigation dots */}
                 {slides && !recording && (
                   <div className="nav-dots">
                     {slides.map((_, i) => (
@@ -1020,7 +921,6 @@ Instructions:
                         key={i}
                         className={`nav-dot${i === previewSi ? " on" : ""}`}
                         onClick={() => { setPreviewSi(i); setEditingIdx(editingIdx === i ? null : editingIdx); }}
-                        title={`Slide ${i + 1} — click dot again to edit`}
                       />
                     ))}
                     <span className="nav-dot-label">
@@ -1029,7 +929,6 @@ Instructions:
                   </div>
                 )}
 
-                {/* Slide editor */}
                 {slides && editingIdx !== null && !recording && (
                   <div className="slide-editor" style={{ width: Math.max(previewW, 260) }}>
                     <div className="editor-header">
@@ -1051,7 +950,6 @@ Instructions:
                   </div>
                 )}
 
-                {/* Slide dot click → open editor */}
                 {slides && !recording && editingIdx === null && (
                   <div style={{ display:"flex", gap:6 }}>
                     {slides.map((_, i) => (
@@ -1063,7 +961,6 @@ Instructions:
                 )}
               </div>
 
-              {/* Recording progress shown in preview area */}
               {recording && (
                 <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8, width: previewW }}>
                   <div style={{ fontSize:11, color:"rgba(255,255,255,.35)" }}>Recording canvas live…</div>
@@ -1073,17 +970,10 @@ Instructions:
                 </div>
               )}
 
-              {/* Video player */}
               {videoUrl && !recording && (
-                <video
-                  src={videoUrl}
-                  controls loop playsInline
-                  className="video-preview"
-                  style={{ width: Math.min(previewW, 280) }}
-                />
+                <video src={videoUrl} controls loop playsInline className="video-preview" style={{ width: Math.min(previewW, 280) }} />
               )}
 
-              {/* Caption panel */}
               {slides && !recording && (
                 <div style={{ width: "100%", maxWidth: 400, padding: "0 0 8px" }}>
                   {!caption && !captionLoading && (
@@ -1101,9 +991,7 @@ Instructions:
                       <div className="caption-header">
                         <span className="caption-title">📝 Caption + Hashtags</span>
                         <div style={{ display:"flex", gap:6 }}>
-                          <button className="copy-btn" onClick={copyCaption}>
-                            {captionCopied ? "✓ Copied!" : "Copy"}
-                          </button>
+                          <button className="copy-btn" onClick={copyCaption}>{captionCopied ? "✓ Copied!" : "Copy"}</button>
                           <button className="copy-btn" onClick={generateCaption}>Redo</button>
                         </div>
                       </div>
